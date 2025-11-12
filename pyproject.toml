@@ -1,0 +1,29 @@
+[project]
+name = "stock_market_forecasting_ai"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "LeomaxFilho",email = "leomax.filho@gmail.com"}
+]
+license = {text = "MLP"}
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "yfinance (>=0.2.66,<0.3.0)",
+    "requests (>=2.32.5,<3.0.0)",
+    "numpy (>=2.3.4,<3.0.0)",
+    "matplotlib (>=3.10.7,<4.0.0)",
+    "pandas (>=2.3.3,<3.0.0)",
+    "datetime (>=5.5,<6.0)"
+]
+
+[dependency-groups]
+dev = [
+    "pytest (>=9.0.0,<10.0.0)",
+    "pylint (>=4.0.2,<5.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
