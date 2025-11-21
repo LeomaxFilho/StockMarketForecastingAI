@@ -142,11 +142,11 @@ def soup_articles(article: str) -> str:
 if __name__ == '__main__':
     load_dotenv()
 
-    API_CUSTOMSEARCH = os.getenv('API_CUSTOM_SEARCH')
-    URL_CUSTOMSEARCH = 'https://customsearch.googleapis.com/customsearch/v1'
-    CX_CUSTOMSEARCH = os.getenv('CUSTOM_SEARCH_ID')
+    API_CUSTOM_SEARCH = os.getenv('API_CUSTOM_SEARCH')
+    URL_CUSTOM_SEARCH = 'https://customsearch.googleapis.com/customsearch/v1'
+    CX_CUSTOM_SEARCH = os.getenv('CUSTOM_SEARCH_ID')
 
-    data, urls = fetch_search(API_CUSTOMSEARCH, URL_CUSTOMSEARCH, CX_CUSTOMSEARCH, 'data/news.json')
+    data, urls = fetch_search(API_CUSTOM_SEARCH, URL_CUSTOM_SEARCH, CX_CUSTOM_SEARCH, 'data/news.json')
 
     articles = asyncio.run(fetch_news(urls))
     #articles = [soup_articles(article) for article in articles]
