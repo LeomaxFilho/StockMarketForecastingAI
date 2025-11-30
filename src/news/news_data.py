@@ -20,13 +20,13 @@ import json
 import asyncio
 from dotenv import load_dotenv
 from utils.functions import (
-        fetch_news, fetch_search
+        fetch_news, fetch_search, soup_articles
 )
 
 if __name__ == '__main__':
     load_dotenv()
 
-    APICUSTOMSEARCH = os.getenv('APICUSTOMSEARCH')
+    APICUSTOMSEARCH = os.getenv('API_CUSTOM_SEARCH')
     URLCUSTOMSEARCH = 'https://customsearch.googleapis.com/customsearch/v1'
     CXCUSTOMSEARCH = os.getenv('CUSTOM_SEARCH_ID')
 
@@ -35,7 +35,7 @@ if __name__ == '__main__':
     )
 
     articles = asyncio.run(fetch_news(urls))
-    #articles = [soup_articles(article) for article in articles]
+    articles = [soup_articles(article) for article in articles]
 
     with open('data/articles.json', 'w', encoding='utf-8') as file:
         json.dump(articles, file, indent= 4, ensure_ascii= False)
