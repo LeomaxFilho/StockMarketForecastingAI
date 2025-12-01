@@ -31,7 +31,7 @@ if __name__ == '__main__':
     CXCUSTOMSEARCH = os.getenv('CUSTOM_SEARCH_ID')
 
     data, urls = fetch_search(
-        APICUSTOMSEARCH, URLCUSTOMSEARCH, CXCUSTOMSEARCH, 'data/news.json'
+        APICUSTOMSEARCH, URLCUSTOMSEARCH, CXCUSTOMSEARCH, 'data/news.json', 'Petrobras'
     )
 
     articles = asyncio.run(fetch_news(urls))

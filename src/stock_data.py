@@ -90,7 +90,8 @@ def ticker_crawler(file_locate : str, time_period : str) -> None:
             sys.exit()
 
 if __name__ == '__main__':
-    LOCATE = 'stock_market_forecasting_ai/data'
-    PERIOD = '5y'
+    LOCATE = '../data'
+    PERIOD = '10y'
+    # removed temporarily "RRRP3.SA"
 
     ticker_crawler(LOCATE, PERIOD)

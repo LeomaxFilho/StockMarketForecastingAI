@@ -32,10 +32,11 @@ import json
 import asyncio
 import requests
 import aiohttp
+from typing import AsyncGenerator
 from bs4 import BeautifulSoup
 
 def fetch_search(
-        api_custom_search : str, url_custom_search : str, cx_custom_search : str, local : str
+        api_custom_search : str, url_custom_search : str, cx_custom_search : str, local : str, q : list[str]
     ) -> tuple[dict, list]:
     """Perform a Google Custom Search and persist the JSON response.
 
@@ -64,7 +65,8 @@ def fetch_search(
     param_custom_search = {
     'key': api_custom_search,
     'cx' : cx_custom_search,
-    'q': 'Petrobras',
+    'q': q,
+    'start' : 0
     }
 
     try:
@@ -85,6 +87,70 @@ def fetch_search(
     urls = [data['items'][i]['link'] for i in range(10)]
 
     return data, urls
+
+#************************************* 
+
+async def fetch_search_generator_test( # TODO
+    api_custom_search : str,
+    url_custom_search : str,
+    cx_custom_search : str,
+    local : str, q : list[str]
+    ) -> AsyncGenerator[tuple[dict, list[str]], None, None]:
+    """Perform a Google Custom Search and persist the JSON response.
+
+    Sends a request to the Google Custom Search API using the provided
+    credentials and query parameters. The raw JSON response is written to
+    ``local`` and the function returns the parsed response along with a list
+    of the top 10 result URLs.
+
+    Args:
+        api_custom_search: API key for Google Custom Search.
+        url_custom_search: Base URL for the Custom Search API (e.g.:
+            ``'https://customsearch.googleapis.com/customsearch/v1'``).
+        cx_custom_search: Custom search engine ID (cx parameter).
+        local: Path where the full JSON response will be saved.
+
+    Returns:
+        A tuple ``(data, urls)`` where ``data`` is the parsed JSON response
+        (a dict) and ``urls`` is a list of the top 10 result links (list of
+        strings).
+
+    Notes:
+        On HTTP or connection errors the function prints the error and calls
+        ``sys.exit()`` to stop the program. Timeout is set to 120 seconds.
+    """
+
+    for i in range(1, 100, 10):
+        param_custom_search = {
+        'key': api_custom_search,
+        'cx' : cx_custom_search,
+        'q': q,
+        'start' : i
+        }
+
+        try:
+            response = requests.get(url=url_custom_search, params=param_custom_search, timeout=120)
+            response.raise_for_status()
+            data = response.json()
+
+        except requests.exceptions.HTTPError as ex:
+            print(f'\033[91m fetch_search error: {ex}\033[0m')
+            sys.exit()
+        except requests.exceptions.ConnectionError as ex:
+            print(f'\033[91m fetch_search error: {ex}\033[0m')
+            sys.exit()
+
+        with open(local, 'w', encoding='utf-8') as file:
+            json.dump(response.json(), file, indent=4)
+
+        urls = [data['items'][i]['link'] for i in range(10)]
+
+    yield data, urls
+
+
+#*************************************
+
+
 
 async def get_url(url : str, session : aiohttp.ClientSession) -> tuple[str, str]:
     """Fetch a single URL asynchronously and return its text content.
@@ -180,7 +246,27 @@ def soup_articles(article: tuple[str, str]) -> str:
     
     return article_souped
 
-def soup_articles_g1 (soup : BeautifulSoup) -> dict[str, str]:
+def soup_articles_g1(soup: BeautifulSoup) -> dict[str, str]:
+    """Extract header and main article text from G1-style pages.
+
+    This parser tries a sequence of common container selectors used by G1
+    (and several WordPress-based templates) to locate the main article body.
+    It also extracts the article header from the first ``<h1>`` element.
+
+    Args:
+        soup: A ``BeautifulSoup`` object created from the article HTML.
+
+    Returns:
+        A dictionary with keys ``'header'`` (the H1 text) and ``'content'``
+        (the extracted article text with surrounding whitespace removed).
+
+    Notes:
+        - The function checks a list of possible selectors in order and uses
+          the first one that matches.
+        - If no matching container is found the current implementation will
+          return ``content.get_text(strip=True)`` on a ``None`` object and
+          raise an exception; callers may want to handle that case upstream.
+    """
 
     possible_containers = [
         {'class_': 'mc-article-body'},    # G1 Novo
@@ -189,7 +275,7 @@ def soup_articles_g1 (soup : BeautifulSoup) -> dict[str, str]:
         {'class_': 'entry-content'},      # WordPress Padrão
         {'class_': 'post-content'},       
         {'class_': 'article-content'},
-        {'id': 'materia-letra'}           
+        {'id': 'materia-letra'}  
     ]
 
     header =  soup.find('h1').get_text(strip=True)
@@ -201,13 +287,32 @@ def soup_articles_g1 (soup : BeautifulSoup) -> dict[str, str]:
     return {'header' : header, 'content' : content.get_text(strip=True)}    
 
 
-def soup_articles_cnn (soup : BeautifulSoup) -> dict[str, str]:
+def soup_articles_cnn(soup: BeautifulSoup) -> dict[str, str]:
+    """Extract header and paragraph content from CNN article pages.
 
-    header =  soup.find('h1').get_text(strip=True)
-    
-    content_div = soup.find('div',attrs={'data-single-content' : 'true'})
+    This parser locates the article header (first ``<h1>``) and then finds
+    the container identified by ``data-single-content='true'``. It collects
+    all paragraph texts inside that container and joins them using two
+    newline characters to preserve paragraph breaks.
+
+    Args:
+        soup: A ``BeautifulSoup`` object parsed from the article HTML.
+
+    Returns:
+        A dictionary with keys ``'header'`` and ``'content'``. ``'content'``
+        contains the joined paragraph texts separated by double newlines.
+
+    Notes:
+        - If ``data-single-content`` is not present the call to
+          ``content_div.find_all('p')`` will raise an exception; callers may
+          want to guard against malformed HTML.
+    """
+
+    header = soup.find('h1').get_text(strip=True)
+
+    content_div = soup.find('div', attrs={'data-single-content': 'true'})
     paragraphs = content_div.find_all('p')
-    
+
     content = "\n\n".join([p.get_text(strip=True) for p in paragraphs])
 
-    return {'header' : header, 'content' : content}    
+    return {'header': header, 'content': content}
