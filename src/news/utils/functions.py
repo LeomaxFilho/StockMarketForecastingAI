@@ -135,7 +135,6 @@ async def fetch_search_generator_test(
                     break
                 urls = [item.get('link') for item in items if 'item' in item]
 
-
                 yield data, urls
 
 #*************************************
