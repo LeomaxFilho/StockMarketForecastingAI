@@ -90,64 +90,60 @@ def fetch_search(
 
 #************************************* 
 
-async def fetch_search_generator_test( # TODO
+async def fetch_search_generator_test(
     api_custom_search : str,
     url_custom_search : str,
     cx_custom_search : str,
-    local : str, q : list[str]
+    q_list : list[str]
     ) -> AsyncGenerator[tuple[dict, list[str]], None, None]:
-    """Perform a Google Custom Search and persist the JSON response.
-
-    Sends a request to the Google Custom Search API using the provided
-    credentials and query parameters. The raw JSON response is written to
-    ``local`` and the function returns the parsed response along with a list
-    of the top 10 result URLs.
+    """Perform a Google Custom Search yielding results page by page.
 
     Args:
         api_custom_search: API key for Google Custom Search.
-        url_custom_search: Base URL for the Custom Search API (e.g.:
-            ``'https://customsearch.googleapis.com/customsearch/v1'``).
-        cx_custom_search: Custom search engine ID (cx parameter).
-        local: Path where the full JSON response will be saved.
+        url_custom_search: Base URL for the Custom Search API.
+        cx_custom_search: Custom search engine ID.
+        q: List of query terms.
 
-    Returns:
-        A tuple ``(data, urls)`` where ``data`` is the parsed JSON response
-        (a dict) and ``urls`` is a list of the top 10 result links (list of
-        strings).
-
-    Notes:
-        On HTTP or connection errors the function prints the error and calls
-        ``sys.exit()`` to stop the program. Timeout is set to 120 seconds.
+    Yields:
+        A tuple ``(data, urls)`` for each page found.
     """
 
-    for i in range(1, 100, 10):
-        param_custom_search = {
-        'key': api_custom_search,
-        'cx' : cx_custom_search,
-        'q': q,
-        'start' : i
-        }
+    async with aiohttp.ClientSession() as session:
+        for q in q_list:
+            for index in range(1, 100, 10):
+                param_custom_search = {
+                'key': api_custom_search,
+                'cx' : cx_custom_search,
+                'q': q,
+                'start' : index
+                }
 
-        try:
-            response = requests.get(url=url_custom_search, params=param_custom_search, timeout=120)
-            response.raise_for_status()
-            data = response.json()
+                try:
+                    async with session.get(url_custom_search, params=param_custom_search, timeout=10) as response: 
+                        response.raise_for_status()
+                        data = await response.json()
 
-        except requests.exceptions.HTTPError as ex:
-            print(f'\033[91m fetch_search error: {ex}\033[0m')
-            sys.exit()
-        except requests.exceptions.ConnectionError as ex:
-            print(f'\033[91m fetch_search error: {ex}\033[0m')
-            sys.exit()
+                except aiohttp.ClientResponseError as ex:
+                    print(f'\033[91m fetch_search error: {ex}\033[0m')
+                    sys.exit()
+                except aiohttp.ClientConnectionError as ex:
+                    print(f'\033[91m fetch_search error: {ex}\033[0m')
+                    sys.exit()
 
-        with open(local, 'w', encoding='utf-8') as file:
-            json.dump(response.json(), file, indent=4)
+                items = data.get('items', [])
+                if not items:
+                    break
+                urls = [item.get('link') for item in items if 'item' in item]
 
-        urls = [data['items'][i]['link'] for i in range(10)]
 
-    yield data, urls
+                yield data, urls
 
 #*************************************
+
+def save_json(path : str, data : dict):
+    """function to save data as json in a file"""
+    with open(path, 'w', encoding='UTF-8') as file:
+        json.dump(data, file, indent= 4)
 
 async def get_url(url : str, session : aiohttp.ClientSession) -> tuple[str, str]:
     """Fetch a single URL asynchronously and return its text content.
