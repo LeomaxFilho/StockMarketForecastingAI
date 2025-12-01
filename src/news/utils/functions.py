@@ -147,10 +147,7 @@ async def fetch_search_generator_test( # TODO
 
     yield data, urls
 
-
 #*************************************
-
-
 
 async def get_url(url : str, session : aiohttp.ClientSession) -> tuple[str, str]:
     """Fetch a single URL asynchronously and return its text content.
