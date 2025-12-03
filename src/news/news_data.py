@@ -20,10 +20,9 @@ import json
 import os
 
 from dotenv import load_dotenv
-
-from news.utils.functions import (
+from utils.functions import (
     fetch_news,
-    fetch_search_generator_test,
+    fetch_search,
     save_json,
     soup_articles,
 )
@@ -42,18 +41,16 @@ async def main():
     #     )
     # )
 
-    data = []
-    urls = []
+    data: list[str] = []
+    urls: list[str] = []
 
-    async for data_pag, urls_pag in fetch_search_generator_test(
-        APICUSTOMSEARCH, URLCUSTOMSEARCH, CXCUSTOMSEARCH, ['Petrobras']
-    ):
+    async for data_pag, urls_pag in fetch_search(APICUSTOMSEARCH, URLCUSTOMSEARCH, CXCUSTOMSEARCH, ['Petrobras']):
         data.append(data_pag)
         urls.extend(urls_pag)
 
     save_json('data/news.json', data)
 
-    articles = asyncio.run(fetch_news(urls))
+    articles = await fetch_news(urls)
     articles = [soup_articles(article) for article in articles]
 
     with open('data/articles.json', 'w', encoding='utf-8') as file:

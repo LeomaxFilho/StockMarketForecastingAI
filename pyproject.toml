@@ -18,9 +18,18 @@ dependencies = [
 [tool.ruff.format]
 quote-style = "single"
 
+[tool.ruff]
+line-length = 120
+
 [tool.basedpyright]
 reportCallIssue =  false
 reportArgumentType = false
 reportUnknownMemberType = false
 reportPossiblyUnboundVariable = false
 reportUnknownVariableType = false
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.5.0",
+    "ruff>=0.14.7",
+]

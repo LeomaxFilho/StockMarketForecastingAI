@@ -39,7 +39,7 @@ from bs4 import BeautifulSoup
 timeout_config = aiohttp.ClientTimeout(10.0)
 
 
-def fetch_search(
+def _fetch_search(
     api_custom_search: str,
     url_custom_search: str,
     cx_custom_search: str,
@@ -78,9 +78,7 @@ def fetch_search(
     }
 
     try:
-        response = requests.get(
-            url=url_custom_search, params=param_custom_search, timeout=120
-        )
+        response = requests.get(url=url_custom_search, params=param_custom_search, timeout=120)
         response.raise_for_status()
         data = response.json()
 
@@ -99,10 +97,7 @@ def fetch_search(
     return data, urls
 
 
-# *************************************
-
-
-async def fetch_search_generator_test(
+async def fetch_search(
     api_custom_search: str,
     url_custom_search: str,
     cx_custom_search: str,
@@ -132,9 +127,7 @@ async def fetch_search_generator_test(
 
                 try:
                     async with session.get(
-                        url_custom_search,
-                        params=param_custom_search,
-                        timeout=timeout_config,
+                        url_custom_search, params=param_custom_search, timeout=timeout_config
                     ) as response:
                         response.raise_for_status()
                         data = await response.json()
@@ -149,12 +142,9 @@ async def fetch_search_generator_test(
                 items = data.get('items', [])
                 if not items:
                     break
-                urls = [item.get('link') for item in items if 'item' in item]
+                urls = [item.get('link') for item in items if 'link' in item]
 
                 yield data, urls
-
-
-# *************************************
 
 
 def save_json(path: str, data: dict[str, str]):
@@ -251,6 +241,7 @@ def soup_articles(article: tuple[str, str]) -> dict[str, str]:
             article_souped = parser_func(soup)
             article_text = article_souped['content']
             article_souped['content'] = ' '.join(article_text.split())
+            article_souped['url'] = article[1]
             break
 
     return article_souped
@@ -299,8 +290,8 @@ def soup_articles_g1(soup: BeautifulSoup) -> dict[str, str]:
         if content:
             content = content.get_text(strip=True)
             break
-        else:
-            content = 'Not Content Avaliable'
+
+        content = 'Not Content Avaliable'
 
     return {'header': header, 'content': content}
 
@@ -332,15 +323,11 @@ def soup_articles_cnn(soup: BeautifulSoup) -> dict[str, str]:
     else:
         header = 'Title Not Avaliable'
 
-    content_div = soup.find('div', attrs={'data-single-content': 'true'})
+    content_div = soup.find(name='div', attrs={'data-single-content': 'true'})
     if content_div:
         paragraphs = content_div.find_all('p')
+        content = ' '.join([paragraph.get_text(strip=True) for paragraph in paragraphs])
     else:
-        paragraphs = 'Paragraphs Not Avaliable'
-
-    content = '\n\n'.join(
-        # TODO test correct type
-        [p.get_text(strip=True) for p in paragraphs if p is BeautifulSoup]
-    )
+        content = 'Paragraphs Not Avaliable'
 
     return {'header': header, 'content': content}
