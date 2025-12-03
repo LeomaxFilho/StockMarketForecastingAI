@@ -1,18 +1,30 @@
-"""News data pipeline: search and download articles.
+"""News data pipeline: orchestrate search and download of news articles.
 
-This module orchestrates a Google Custom Search query and concurrently
-downloads the pages returned by that search. It delegates the actual
-HTTP and concurrency work to `fetch_search` and `fetch_news` in
-``utils.functions``.
+This module composes lower-level helpers to perform Google Custom Search
+queries and concurrently download the resulting pages. It uses functions
+from `news.utils.functions` (for example `fetch_search` and `fetch_news`)
+to create two output artifacts:
 
-Environment variables
-- ``APICUSTOMSEARCH`` : Google Custom Search API key.
-- ``CUSTOM_SEARCH_ID`` : Custom Search Engine ID (cx).
+- `data/news.json` : the raw JSON responses returned by the Custom Search API.
+- `data/articles.json` : a list of article records with extracted fields
+  such as `header`, `content`, and `url`. Failed downloads are represented
+  by placeholder values (for example the string `'Error'`).
 
-Outputs
-- ``data/news.json`` : raw JSON response from the Custom Search API.
-- ``data/articles.json`` : list with the raw HTML/text of the fetched pages;
-    failed downloads are represented by the string ``'Error'``.
+Configuration
+- The calling environment must provide Google Custom Search credentials:
+  - API key: environment variable `API_CUSTOM_SEARCH`
+  - Custom Search Engine ID: environment variable `CUSTOM_SEARCH_ID`
+
+Usage
+- The module exposes an `async def main()` coroutine which demonstrates the
+  orchestration and writes the two JSON files under a relative `data/` folder.
+  The module can be executed as a script, or its helper functions can be
+  imported and reused in other pipelines.
+
+Notes
+- This module writes files to disk using relative paths. Adjust file paths or
+  refactor to return in-memory objects if you need different integration or
+  testing behavior.
 """
 
 import asyncio
@@ -20,7 +32,8 @@ import json
 import os
 
 from dotenv import load_dotenv
-from utils.functions import (
+
+from .utils.functions import (
     fetch_news,
     fetch_search,
     save_json,
@@ -29,7 +42,7 @@ from utils.functions import (
 
 
 async def main():
-    load_dotenv()
+    _ = load_dotenv()
 
     APICUSTOMSEARCH = os.getenv('API_CUSTOM_SEARCH')
     URLCUSTOMSEARCH = 'https://customsearch.googleapis.com/customsearch/v1'
