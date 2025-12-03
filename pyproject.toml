@@ -14,3 +14,13 @@ dependencies = [
     "requests>=2.32.5",
     "yfinance>=0.2.66",
 ]
+
+[tool.ruff.format]
+quote-style = "single"
+
+[tool.basedpyright]
+reportCallIssue =  false
+reportArgumentType = false
+reportUnknownMemberType = false
+reportPossiblyUnboundVariable = false
+reportUnknownVariableType = false
