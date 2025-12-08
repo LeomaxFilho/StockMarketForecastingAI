@@ -36,6 +36,7 @@ import requests
 from bs4 import BeautifulSoup
 
 timeout_config = aiohttp.ClientTimeout(10.0)
+timeout_conf: int = 120
 
 
 def _fetch_search(
@@ -87,7 +88,7 @@ def _fetch_search(
     }
 
     try:
-        response = requests.get(url=url_custom_search, params=param_custom_search, timeout=120)
+        response = requests.get(url=url_custom_search, params=param_custom_search, timeout=timeout_conf)
         response.raise_for_status()
         data = response.json()
 

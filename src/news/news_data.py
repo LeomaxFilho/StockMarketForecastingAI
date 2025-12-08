@@ -28,7 +28,6 @@ Notes
 """
 
 import asyncio
-import json
 import os
 
 from dotenv import load_dotenv
@@ -66,8 +65,7 @@ async def main():
     articles = await fetch_news(urls)
     articles = [soup_articles(article) for article in articles]
 
-    with open('data/articles.json', 'w', encoding='utf-8') as file:
-        json.dump(articles, file, indent=4, ensure_ascii=False)
+    save_json('data/articles.json', articles)
 
 
 if __name__ == '__main__':
