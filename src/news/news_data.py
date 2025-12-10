@@ -31,8 +31,7 @@ import asyncio
 import os
 
 from dotenv import load_dotenv
-
-from .utils.functions import (
+from utils.functions import (
     fetch_news,
     fetch_search,
     save_json,
