@@ -32,8 +32,9 @@ import sys
 from collections.abc import AsyncGenerator
 
 import aiohttp
+import bs4
 import requests
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 
 timeout_config = aiohttp.ClientTimeout(10.0)
 timeout_conf: int = 120
@@ -154,7 +155,9 @@ async def fetch_search(
 
                 try:
                     async with session.get(
-                        url_custom_search, params=param_custom_search, timeout=timeout_config
+                        url_custom_search,
+                        params=param_custom_search,
+                        timeout=timeout_config,
                     ) as response:
                         response.raise_for_status()
                         data = await response.json()
@@ -187,7 +190,7 @@ def save_json(path: str, data: dict[str, str]):
     This helper uses UTF-8 encoding and an indent of 4 for readability.
     """
     with open(path, 'w', encoding='UTF-8') as file:
-        json.dump(data, file, indent=4)
+        json.dump(data, file, indent=4, ensure_ascii=False)
 
 
 async def get_url(url: str, session: aiohttp.ClientSession) -> tuple[str, str]:
@@ -301,6 +304,7 @@ def soup_articles(article: tuple[str, str]) -> dict[str, str]:
     for key, parser_func in parsers.items():
         if key in article[1]:
             article_souped = parser_func(soup)
+
             article_text = article_souped['content']
             article_souped['content'] = ' '.join(article_text.split())
             article_souped['url'] = article[1]
@@ -347,16 +351,26 @@ def soup_articles_g1(soup: BeautifulSoup) -> dict[str, str]:
         {'id': 'materia-letra'},
     ]
 
+    header = 'Not Title Avaliable'
+
     header_tag = soup.find('h1')
+
     if header_tag:
         header = header_tag.get_text(strip=True)
-    else:
-        header = 'Not Title Avaliable'
 
+    content = 'Not Content Avaliable'
     for selector in possible_containers:
-        content = soup.find(attrs=selector)
-        if content:
-            content = content.get_text(strip=True)
+        article_content: Tag = soup.find(attrs=selector)
+
+        if article_content:
+            photo_tags = article_content.find_all('p', class_='content-media__description')
+
+            for tags in photo_tags:
+                _ = tags.decompose()
+
+            paragraphs: bs4.element.ResultSet[Tag] = article_content.find_all('p')
+
+            content: str = ' '.join([paragraph.get_text(strip=True) for paragraph in paragraphs])
             break
 
         content = 'Not Content Avaliable'
@@ -394,13 +408,17 @@ def soup_articles_cnn(soup: BeautifulSoup) -> dict[str, str]:
     header_tag = soup.find('h1')
     if header_tag:
         header = header_tag.get_text(strip=True)
+
     else:
         header = 'Title Not Avaliable'
 
     content_div = soup.find(name='div', attrs={'data-single-content': 'true'})
+
     if content_div:
         paragraphs = content_div.find_all('p')
+
         content = ' '.join([paragraph.get_text(strip=True) for paragraph in paragraphs])
+
     else:
         content = 'Paragraphs Not Avaliable'
 
