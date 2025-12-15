@@ -31,8 +31,7 @@ import asyncio
 import os
 
 from dotenv import load_dotenv
-
-from src.news.utils.functions import (
+from utils.functions import (
     fetch_news,
     fetch_search,
     save_json,
@@ -43,22 +42,43 @@ from src.news.utils.functions import (
 async def main():
     _ = load_dotenv()
 
-    APICUSTOMSEARCH = os.getenv('API_CUSTOM_SEARCH')
-    URLCUSTOMSEARCH = 'https://customsearch.googleapis.com/customsearch/v1'
-    CXCUSTOMSEARCH = os.getenv('CUSTOM_SEARCH_ID')
+    API_CUSTOM_SEARCH = os.getenv('API_CUSTOM_SEARCH')
+    URL_CUSTOM_SEARCH = 'https://customsearch.googleapis.com/customsearch/v1'
+    CX_CUSTOM_SEARCH = os.getenv('CUSTOM_SEARCH_ID')
+    # API_CHAT_GPT = f'Bearer {os.getenv("API_CHAT_GPT")}'
+    # URL_CHAT_GPT = 'https://api.openai.com/v1/chat/completions'
+    # MODEL_CHAT_GTP = 'gpt-5-nano'
 
-    # data, urls = asyncio.run(
-    #     fetch_search(
-    #         APICUSTOMSEARCH, URLCUSTOMSEARCH, CXCUSTOMSEARCH, 'data/news.json', 'Petrobras'
-    #     )
-    # )
-
+    # header = {'Authorization': API_CHAT_GPT}
+    # payload = {
+    #     'model': MODEL_CHAT_GTP,
+    #     'messages': [
+    #         {
+    #             'role': 'system',
+    #             'content': 'voce deve me responder apenas com 0 e 1, com base em se a notícia pode ter alguma nas ações do mercado financeiro brasileiro',
+    #         },
+    #         {'role': 'user', 'content': 'qual o seu modelo?'},
+    #     ],
+    # }
+    query_list = [
+        'Petrobras',
+        'Petróleo',
+        'Dólar',
+        'Guerra',
+        'Dólar',
+        'China',
+        'Geopolítica',
+        'Estoques',
+        'Juros',
+        'Refino',
+    ]
     data: list[str] = []
     urls: list[str] = []
 
-    async for data_pag, urls_pag in fetch_search(APICUSTOMSEARCH, URLCUSTOMSEARCH, CXCUSTOMSEARCH, ['Petrobras']):
-        data.append(data_pag)
-        urls.extend(urls_pag)
+    for query in query_list:
+        async for data_pag, urls_pag in fetch_search(API_CUSTOM_SEARCH, URL_CUSTOM_SEARCH, CX_CUSTOM_SEARCH, query):
+            data.append(data_pag)
+            urls.extend(urls_pag)
 
     save_json('data/news.json', data)
 
