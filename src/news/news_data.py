@@ -65,7 +65,6 @@ async def main():
         'Petróleo',
         'Dólar',
         'Guerra',
-        'Dólar',
         'China',
         'Geopolítica',
         'Estoques',

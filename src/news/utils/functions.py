@@ -28,7 +28,6 @@ Design notes
 
 import asyncio
 import json
-import sys
 from collections.abc import AsyncGenerator
 
 import aiohttp
@@ -95,10 +94,8 @@ def _fetch_search(
 
     except requests.exceptions.HTTPError as ex:
         print(f'\033[91m fetch_search error: {ex}\033[0m')
-        sys.exit()
     except requests.exceptions.ConnectionError as ex:
         print(f'\033[91m fetch_search error: {ex}\033[0m')
-        sys.exit()
 
     with open(local, 'w', encoding='utf-8') as file:
         json.dump(response.json(), file, indent=4)
@@ -164,10 +161,9 @@ async def fetch_search(
 
                 except aiohttp.ClientResponseError as ex:
                     print(f'\033[91m fetch_search error: {ex}\033[0m')
-                    sys.exit()
+
                 except aiohttp.ClientConnectionError as ex:
                     print(f'\033[91m fetch_search error: {ex}\033[0m')
-                    sys.exit()
 
                 items = data.get('items', [])
                 if not items:
@@ -229,19 +225,15 @@ async def get_url(url: str, session: aiohttp.ClientSession) -> tuple[str, str]:
 
     except aiohttp.ClientResponseError as ex:
         print(f'\033[91m Response Error URL: {ex}\033[0m')
-        sys.exit()
 
     except aiohttp.InvalidURL as ex:
         print(f'\033[91m Invalid URL: {ex}\033[0m')
-        sys.exit()
 
     except aiohttp.ConnectionTimeoutError as ex:
         print(f'\033[91m Timeout Error: {ex}\033[0m')
-        sys.exit()
 
     except aiohttp.ClientError as ex:
         print(f'\033[91m Client Error: {ex}\033[0m')
-        sys.exit()
 
     return (response, url)
 
