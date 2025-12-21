@@ -28,8 +28,8 @@ Design notes
 
 import asyncio
 import json
-import sys
 from collections.abc import AsyncGenerator
+from datetime import datetime
 
 import aiohttp
 import bs4
@@ -95,10 +95,8 @@ def _fetch_search(
 
     except requests.exceptions.HTTPError as ex:
         print(f'\033[91m fetch_search error: {ex}\033[0m')
-        sys.exit()
     except requests.exceptions.ConnectionError as ex:
         print(f'\033[91m fetch_search error: {ex}\033[0m')
-        sys.exit()
 
     with open(local, 'w', encoding='utf-8') as file:
         json.dump(response.json(), file, indent=4)
@@ -108,7 +106,7 @@ def _fetch_search(
     return data, urls
 
 
-async def fetch_search(
+async def __fetch_search(
     api_custom_search: str,
     url_custom_search: str,
     cx_custom_search: str,
@@ -164,10 +162,9 @@ async def fetch_search(
 
                 except aiohttp.ClientResponseError as ex:
                     print(f'\033[91m fetch_search error: {ex}\033[0m')
-                    sys.exit()
+
                 except aiohttp.ClientConnectionError as ex:
                     print(f'\033[91m fetch_search error: {ex}\033[0m')
-                    sys.exit()
 
                 items = data.get('items', [])
                 if not items:
@@ -175,6 +172,38 @@ async def fetch_search(
                 urls = [item.get('link') for item in items if 'link' in item]
 
                 yield data, urls
+
+
+async def fetch_search(
+    api_news_api: str,
+    url_news_api: str,
+    domains: list[str],
+    dates: list[str],
+    language: str,
+):
+    date_format = '%Y-%m-%d %H:%M:%S%z'
+    async with aiohttp.ClientSession() as session:
+        for date in dates:
+            date_datetime = datetime.strptime(date, date_format)
+            param = {
+                'apiKey': api_news_api,
+                'from': f'{date_datetime.strftime("%Y-%m-%d")}T10:00:00',
+                'to': f'{date_datetime.strftime("%Y-%m-%d")}T18:25:00',
+                'domains': domains,
+                'language': language,
+            }
+            try:
+                async with session.get(url_news_api, params=param, timeout=timeout_config) as response:
+                    response.raise_for_status()
+                    data = await response.json()
+
+            except aiohttp.ClientResponseError as ex:
+                print(f'\033[91m fetch_search error: {ex}\033[0m')
+
+            except aiohttp.ClientConnectionError as ex:
+                print(f'\033[91m fetch_search error: {ex}\033[0m')
+
+    return data
 
 
 def save_json(path: str, data: dict[str, str]):
@@ -229,19 +258,15 @@ async def get_url(url: str, session: aiohttp.ClientSession) -> tuple[str, str]:
 
     except aiohttp.ClientResponseError as ex:
         print(f'\033[91m Response Error URL: {ex}\033[0m')
-        sys.exit()
 
     except aiohttp.InvalidURL as ex:
         print(f'\033[91m Invalid URL: {ex}\033[0m')
-        sys.exit()
 
     except aiohttp.ConnectionTimeoutError as ex:
         print(f'\033[91m Timeout Error: {ex}\033[0m')
-        sys.exit()
 
     except aiohttp.ClientError as ex:
         print(f'\033[91m Client Error: {ex}\033[0m')
-        sys.exit()
 
     return (response, url)
 

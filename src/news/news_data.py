@@ -45,27 +45,12 @@ async def main():
     API_CUSTOM_SEARCH = os.getenv('API_CUSTOM_SEARCH')
     URL_CUSTOM_SEARCH = 'https://customsearch.googleapis.com/customsearch/v1'
     CX_CUSTOM_SEARCH = os.getenv('CUSTOM_SEARCH_ID')
-    # API_CHAT_GPT = f'Bearer {os.getenv("API_CHAT_GPT")}'
-    # URL_CHAT_GPT = 'https://api.openai.com/v1/chat/completions'
-    # MODEL_CHAT_GTP = 'gpt-5-nano'
 
-    # header = {'Authorization': API_CHAT_GPT}
-    # payload = {
-    #     'model': MODEL_CHAT_GTP,
-    #     'messages': [
-    #         {
-    #             'role': 'system',
-    #             'content': 'voce deve me responder apenas com 0 e 1, com base em se a notícia pode ter alguma nas ações do mercado financeiro brasileiro',
-    #         },
-    #         {'role': 'user', 'content': 'qual o seu modelo?'},
-    #     ],
-    # }
     query_list = [
         'Petrobras',
         'Petróleo',
         'Dólar',
         'Guerra',
-        'Dólar',
         'China',
         'Geopolítica',
         'Estoques',
@@ -74,6 +59,7 @@ async def main():
     ]
     data: list[str] = []
     urls: list[str] = []
+    # domains: list[str] = ['g1.globo.com', 'cnnbrasil.com.br']
 
     for query in query_list:
         async for data_pag, urls_pag in fetch_search(API_CUSTOM_SEARCH, URL_CUSTOM_SEARCH, CX_CUSTOM_SEARCH, query):
@@ -90,3 +76,19 @@ async def main():
 
 if __name__ == '__main__':
     asyncio.run(main())
+
+    # API_CHAT_GPT = f'Bearer {os.getenv("API_CHAT_GPT")}'
+    # URL_CHAT_GPT = 'https://api.openai.com/v1/chat/completions'
+    # MODEL_CHAT_GTP = 'gpt-5-nano'
+
+    # header = {'Authorization': API_CHAT_GPT}
+    # payload = {
+    #     'model': MODEL_CHAT_GTP,
+    #     'messages': [
+    #         {
+    #             'role': 'system',
+    #             'content': 'voce deve me responder apenas com 0 e 1, com base em se a notícia pode ter alguma nas ações do mercado financeiro brasileiro',
+    #         },
+    #         {'role': 'user', 'content': 'qual o seu modelo?'},
+    #     ],
+    # }

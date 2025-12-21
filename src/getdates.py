@@ -1,10 +1,10 @@
-import pandas as pd
 import json
-import numpy as np
 import os
 
+import numpy as np
+import pandas as pd
+
 path = f'{os.path.dirname(os.path.abspath(__file__))}'
-print(path)
 
 tickers = pd.read_json(f'{path}/../data/tickers.json').to_dict()
 
@@ -13,7 +13,7 @@ for k, ticker in tickers[0].items():
 
     df['Variacao'] = (df['Open'] - df['Close']) / df['Open']
 
-    higher = np.where(np.abs(df['Variacao']) > 0.02)  # Buscar um numero bom para isso
+    higher = np.where(np.abs(df['Variacao']) > 0.05)  # Buscar um numero bom para isso
     df_higher = df.loc[higher]
     df_higher['Date'].head()
 
