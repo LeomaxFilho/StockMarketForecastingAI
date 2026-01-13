@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 from datetime import datetime, timedelta
 
@@ -11,7 +12,7 @@ TIMEOUT_MAX = aiohttp.ClientTimeout(total=10)
 class Google_news:
     def __init__(
         self,
-        lang: str = 'pt',
+        lang: str = 'pt-br',
         period: int = 1,
         date: str | datetime | None = None,
         *,
@@ -148,7 +149,7 @@ class Google_news:
             else:
                 self.__date = date
 
-    def get_results(self) -> list[dict[str, str]]:
+    def get_results(self):
         """
         Get the list of news results fetched by the get_news method.
 
@@ -187,29 +188,50 @@ class Google_news:
         - The actual XML parsing is delegated to soup_news and is executed in a thread
           pool to avoid blocking the event loop.
         """
-        url = 'https://news.google.com/rss/search?q={query} after%3A{after} before%3A{before}&hl={lang}&gl={geolocalization}&num{max_results}'.format(
-            query=query,
-            after=self.__date.strftime('%Y-%m-%d'),
-            lang=self.__lang,
-            geolocalization=self.gl,
-            before=(self.__date + timedelta(days=self.__period)).strftime('%Y-%m-%d'),
-            max_results=self.max_results,
-        )
-        async with aiohttp.ClientSession() as session:
-            try:
-                async with session.get(url, headers=self.headers) as response:
-                    response.raise_for_status()
-                    result: str = await response.text(enconding=self.__encode, timeout=TIMEOUT_MAX)
+        results = []
+        urls = []
 
+        for i in range(self.__period):
+            query_params = {
+                'query': query,
+                'after': (self.__date + timedelta(days=i)).strftime('%Y-%m-%d'),
+                'before': (self.__date + timedelta(days=i + 1)).strftime('%Y-%m-%d'),
+                'lang': self.__lang,
+                'geolocalization': self.gl,
+            }
+            url = 'https://news.google.com/rss/search?q={query} after%3A{after} before%3A{before}&hl={lang}&gl={geolocalization}'.format(
+                **query_params
+            )
+            urls.append(url)
+
+        async def fetch(session, url):
+            try:
+                async with session.get(url, headers=self.headers, timeout=TIMEOUT_MAX) as response:
+                    response.raise_for_status()
+                    return await response.text(encoding=self.__encode)
             except Exception as e:
-                logging.error(f'Error fetching news: {e}')
-                result = 'Error fetching news.'
-                return result
+                logging.error(f'Error fetching {url}: {e}')
+                return None
+
+        async with aiohttp.ClientSession() as session:
+            tasks = [fetch(session, url) for url in urls]
+            results = await asyncio.gather(*tasks)
 
         loop = asyncio.get_event_loop()
-        souped_result = await loop.run_in_executor(None, self.soup_news, result)
 
-        return souped_result
+        seen_titles = set()
+
+        for result in results:
+            if result is not None:
+                souped_result = await loop.run_in_executor(None, self.soup_news, result)
+
+                if souped_result:
+                    for item in souped_result:
+                        if item['title'] not in seen_titles:
+                            seen_titles.add(item['title'])
+                            self.__results.append(item)
+
+        return self.__results
 
     def soup_news(self, news: str) -> list[dict[str, str]]:
         """
@@ -241,6 +263,8 @@ class Google_news:
             parsed_news: BeautifulSoup = BeautifulSoup(news, features=features)
         items = parsed_news.find_all('item')
 
+        results = []
+
         for item in items:
             if item.title:
                 title: str = item.title.get_text(strip=True)
@@ -257,17 +281,71 @@ class Google_news:
             else:
                 pub_date = 'Error fetching date.'
 
-            self.__results.append({'title': title, 'link': link, 'pubDate': pub_date})
+            if item.source:
+                source = item.source.get_text(strip=True)
+                source_link = item.source.get('url')
+            else:
+                source = 'Error fetching source.'
 
-        return self.__results
+            results.append(
+                {'title': title, 'link': link, 'source': {'name': source, 'url': source_link}, 'pubDate': pub_date}
+            )
+
+        return results
+
+
+def save_json(articles: dict[str, str]):
+    try:
+        with open('news.json', 'w') as file:
+            json.dump(articles, file, indent=4, ensure_ascii=False)
+
+    except Exception as e:
+        logging.error(f'Error saving JSON: {e}')
+        return False
+
+    return True
+
+
+def load_json() -> dict[str, str]:
+    try:
+        with open('news.json', 'r') as file:
+            return json.load(file)
+
+    except FileNotFoundError:
+        return {}
+
+    except Exception as e:
+        logging.error(f'Error loading JSON: {e}')
+        return {}
+
+
+async def articles_html(articles: list[dict[str, str]]) -> list[str]:
+    results = []
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    }
+
+    async with aiohttp.ClientSession() as session:
+        for article in articles:
+            link = article['link']
+
+            async with session.get(link, headers=headers) as response:
+                if response.status == 200:
+                    text = await response.text(encoding='utf-8')
+
+                    results.append(text)
+                else:
+                    results.append(f'Error: {response.status}')
+
+    return results
 
 
 if __name__ == '__main__':
 
     async def main():
-        google_news = Google_news(lang='en', period=2, max_results=10, date='2025-12-21')
-        _ = await google_news.get_news(query='Artificial Intelligence')
+        google_news = Google_news(lang='pt-br', period=10, date='2025-12-21')
+        _ = await google_news.get_news(query='Inteligencia Artificial')
         items = google_news.get_results()
-        print(items)
+        _ = save_json(items)
 
     asyncio.run(main())
