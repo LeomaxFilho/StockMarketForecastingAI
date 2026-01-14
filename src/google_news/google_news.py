@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 
 import aiohttp
 from bs4 import BeautifulSoup
+from model import ArticleModel, save_to_json
 
 TIMEOUT_MAX = aiohttp.ClientTimeout(total=10)
 
@@ -65,7 +66,7 @@ class Google_news:
         """
 
         self.__links: list[str] = []
-        self.__results: list[dict[str, str]] = []
+        self.__results: list[ArticleModel] = []
         self.__period: int = period
         self.__lang: str = lang
         self.headers: dict[str, str] = {'User-Agent': self.__user_agent}
@@ -149,7 +150,7 @@ class Google_news:
             else:
                 self.__date = date
 
-    def get_results(self):
+    def get_results(self) -> list[ArticleModel]:
         """
         Get the list of news results fetched by the get_news method.
 
@@ -158,7 +159,7 @@ class Google_news:
         list of dict
             A list of dictionaries containing news items with 'title', 'link', and 'pubDate' keys.
         """
-        return self.__results
+        return [result for result in self.__results]
 
     async def get_news(self, *, query: str = 'Noticias'):
         """
@@ -227,13 +228,13 @@ class Google_news:
 
                 if souped_result:
                     for item in souped_result:
-                        if item['title'] not in seen_titles:
-                            seen_titles.add(item['title'])
+                        if item.title not in seen_titles:
+                            seen_titles.add(item.title)
                             self.__results.append(item)
 
         return self.__results
 
-    def soup_news(self, news: str) -> list[dict[str, str]]:
+    def soup_news(self, news: str) -> list[ArticleModel]:
         """
         Parse an RSS/XML news string with BeautifulSoup and return a list of news item dictionaries.
 
@@ -263,7 +264,7 @@ class Google_news:
             parsed_news: BeautifulSoup = BeautifulSoup(news, features=features)
         items = parsed_news.find_all('item')
 
-        results = []
+        results: list[ArticleModel] = []
 
         for item in items:
             if item.title:
@@ -288,27 +289,15 @@ class Google_news:
                 source = 'Error fetching source.'
 
             results.append(
-                {'title': title, 'link': link, 'source': {'name': source, 'url': source_link}, 'pubDate': pub_date}
+                ArticleModel(title=title, link=link, source_name=source, source_url=source_link, pub_date=pub_date)
             )
 
         return results
 
 
-def save_json(articles: dict[str, str]):
+def load_json(file_name: str) -> dict[str, str]:
     try:
-        with open('news.json', 'w') as file:
-            json.dump(articles, file, indent=4, ensure_ascii=False)
-
-    except Exception as e:
-        logging.error(f'Error saving JSON: {e}')
-        return False
-
-    return True
-
-
-def load_json() -> dict[str, str]:
-    try:
-        with open('news.json', 'r') as file:
+        with open(file_name, 'r') as file:
             return json.load(file)
 
     except FileNotFoundError:
@@ -319,33 +308,12 @@ def load_json() -> dict[str, str]:
         return {}
 
 
-async def articles_html(articles: list[dict[str, str]]) -> list[str]:
-    results = []
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-    }
-
-    async with aiohttp.ClientSession() as session:
-        for article in articles:
-            link = article['link']
-
-            async with session.get(link, headers=headers) as response:
-                if response.status == 200:
-                    text = await response.text(encoding='utf-8')
-
-                    results.append(text)
-                else:
-                    results.append(f'Error: {response.status}')
-
-    return results
-
-
 if __name__ == '__main__':
 
     async def main():
-        google_news = Google_news(lang='pt-br', period=10, date='2025-12-21')
+        google_news = Google_news(lang='pt-br', period=1, date='2025-12-21')
         _ = await google_news.get_news(query='Inteligencia Artificial')
         items = google_news.get_results()
-        _ = save_json(items)
+        _ = save_to_json(items, 'news.json')
 
     asyncio.run(main())
