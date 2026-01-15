@@ -3,13 +3,6 @@
 
 This module provides a `GUM` class that can perform searches on g1.globo.com,
 scroll the results page to load widgets, and extract article links.
-
-Improvements included:
-- explicit WebDriverWait + expected_conditions usage
-- ensured `driver.quit()` is executed in a finally block
-- an async `search()` wrapper that runs the synchronous `search_g1()` in a thread
-  pool so callers can use `asyncio.run(GUM.search())`
-- better typing for elements and return values
 """
 
 import asyncio
