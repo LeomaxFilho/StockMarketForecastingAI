@@ -6,10 +6,14 @@ scroll the results page to load widgets, and extract article links.
 """
 
 import asyncio
+import json
 import time
 import urllib.parse
 from datetime import datetime, timedelta
 
+import aiohttp
+import bs4
+from bs4 import BeautifulSoup, Tag
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException, WebDriverException
 from selenium.webdriver.chrome.options import Options
@@ -18,6 +22,9 @@ from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
+
+timeout_conf: int = 20
+timeout_config = aiohttp.ClientTimeout(float(timeout_conf))
 
 
 class GUM:
@@ -50,7 +57,7 @@ class GUM:
         driver: WebDriver,
         max_scrolls: int = 100,
         pause: float = 1.5,
-        max_idle: int = 3,
+        max_idle: int = 5,
         timeout: float = 60.0,
         load_more_selector: str | None = None,
     ) -> list[WebElement]:
@@ -156,7 +163,15 @@ class GUM:
         )
 
         options = Options()
+        options.add_argument('--disable-blink-features=AutomationControlled')
+        options.add_argument('--start-maximized')
+        options.add_argument('--window-size=1920,1080')
+
+        options.add_argument(
+            'user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        )
         options.add_argument('--incognito')
+
         if headless:
             options.add_argument('--headless=new')
             options.add_argument('--disable-gpu')
@@ -214,8 +229,179 @@ class GUM:
         return await loop.run_in_executor(None, lambda: self.search_g1(*args, **kwargs))
 
 
-if __name__ == '__main__':
-    gum = GUM(query='stock market', period=1, date='2023-01-01')
-    results = asyncio.run(gum.search(headless=True))
+async def get_url(url: str, session: aiohttp.ClientSession) -> tuple[str, str]:
+    """Asynchronously fetch a single URL and return (text, url).
 
-    print(results)
+    Performs an HTTP GET using the provided `aiohttp.ClientSession` and
+    returns a tuple `(response_text, url)`. The function raises a
+    `SystemExit` after logging for several categories of aiohttp errors in
+    the current implementation; callers that need resilient behaviour should
+    catch exceptions or modify the error handling.
+
+    Parameters
+    ----------
+    url : str
+        The URL to fetch.
+    session : aiohttp.ClientSession
+        An active aiohttp session used to perform the request.
+
+    Returns
+    -------
+    tuple[str, str]
+        A tuple containing the response body as text and the original URL.
+
+    Raises
+    ------
+    SystemExit
+        The function currently exits the process on ClientResponseError,
+        InvalidURL, ConnectionTimeoutError and general ClientError after
+        printing an error message.
+    """
+    response = ''
+    try:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
+        async with session.get(url, timeout=timeout_config, headers=headers) as request:
+            request.raise_for_status()
+            response = await request.text()
+
+    except (aiohttp.ServerTimeoutError, asyncio.TimeoutError, TimeoutError):
+        response = 'Timeout Error'
+        print(f'\033[91m Timeout Error: {url}\033[0m')
+
+    except aiohttp.ClientResponseError as ex:
+        print(f'\033[91m Response Error URL: {ex}\033[0m')
+
+    except aiohttp.InvalidURL as ex:
+        print(f'\033[91m Invalid URL: {ex}\033[0m')
+
+    except aiohttp.ClientError as ex:
+        print(f'\033[91m Client Error: {ex}\033[0m')
+
+    return (response, url)
+
+
+def soup_articles_g1(article: str) -> dict[str, str]:
+    """Parse G1-style pages: extract header and main article body.
+
+    This parser attempts several selectors commonly used by G1 and
+    WordPress-based templates to find the article body. It also extracts
+    the first <h1> as the article header when present.
+
+    Parameters
+    ----------
+    soup : bs4.BeautifulSoup
+        Parsed HTML document.
+
+    Returns
+    -------
+    dict
+        A dictionary with keys:
+        - 'header' : str, the H1 text or a fallback message if not found
+        - 'content': str, the main article text or a fallback message
+
+    Notes
+    -----
+    The function iterates over a list of candidate selectors and returns the
+    first match. If no container is found the function returns a fallback
+    string in the `content` field rather than raising an exception.
+    Callers that require stronger guarantees should check the returned
+    dictionary before using its values.
+    """
+    soup = BeautifulSoup(article, 'html.parser')
+
+    possible_containers = [
+        {'class_': 'mc-article-body'},  # G1 Novo
+        {'itemprop': 'articleBody'},  # Padrão Schema.org
+        {'class_': 'materia-conteudo'},  # G1 Antigo
+        {'class_': 'entry-content'},  # WordPress Padrão
+        {'class_': 'post-content'},
+        {'class_': 'article-content'},
+        {'id': 'materia-letra'},
+    ]
+
+    header = 'Not Title Avaliable'
+
+    header_tag = soup.find('h1')
+
+    if header_tag:
+        header = header_tag.get_text(strip=True)
+
+    content = 'Not Content Avaliable'
+    for selector in possible_containers:
+        article_content: Tag = soup.find(attrs=selector)
+
+        if article_content:
+            photo_tags = article_content.find_all('p', class_='content-media__description')
+
+            for tags in photo_tags:
+                _ = tags.decompose()
+
+            paragraphs: bs4.element.ResultSet[Tag] = article_content.find_all('p')
+
+            content: str = ' '.join([paragraph.get_text(strip=True) for paragraph in paragraphs])
+            break
+
+        content = 'Not Content Avaliable'
+
+    return {'header': header, 'content': content}
+
+
+async def fetch_news(urls: list[str], limit: int = 5) -> list[tuple[str, str]]:
+    """Fetch multiple URLs concurrently and return their results.
+
+    This helper creates an aiohttp session and dispatches parallel GET
+    requests for every URL in `urls` using `asyncio.gather` and the helper
+    `get_url`. The function returns a list of tuples `(text, url)` in the
+    same order as the input `urls`.
+
+    Parameters
+    ----------
+    urls : list[str]
+        A list of URLs to fetch concurrently.
+
+    Returns
+    -------
+    list[tuple[str, str]]
+        A list where each element is a tuple `(response_text, url)` produced
+        by `get_url`. The order of results matches the order of the `urls`
+        argument.
+    """
+
+    semaphore = asyncio.Semaphore(limit)
+
+    async def fetch_with_sem(url: str, session: aiohttp.ClientSession):
+        async with semaphore:
+            # Pequeno delay aleatório para parecer mais humano
+            await asyncio.sleep(0.5)
+            return await get_url(url, session)
+
+    async with aiohttp.ClientSession() as connection:
+        tasks = [fetch_with_sem(url, connection) for url in urls]
+        articles = await asyncio.gather(*tasks)
+        return articles
+
+
+def save_json(path: str, data: dict[str, str]):
+    """Write a Python object to a file as pretty-printed JSON.
+
+    Parameters
+    ----------
+    path : str
+        Destination file path.
+    data : dict
+        Python object (typically a dict or list) to serialize as JSON.
+
+    This helper uses UTF-8 encoding and an indent of 4 for readability.
+    """
+    with open('salvo.json', 'w', encoding='UTF-8') as file:
+        json.dump(data, file, indent=4, ensure_ascii=False)
+
+
+if __name__ == '__main__':
+    gum = GUM(query='noticias', period=1, date='2023-01-01')
+    results = asyncio.run(gum.search(headless=False))
+    articles = asyncio.run(fetch_news(results))
+    souped = [soup_articles_g1(article[0]) for article in articles if article[0]]
+    save_json('salvo.json', {'articles': souped})
